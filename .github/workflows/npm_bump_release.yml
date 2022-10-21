@@ -1,0 +1,69 @@
+# bumps the current version in the repository and cuts a new release to npm
+name: npm_bump_release
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: branch to verify
+        default: ${{ github.ref }}
+        type: string
+        required: true
+      package_name:
+        description: name of the npm package
+        type: string
+        required: true
+    secrets:
+      NPM_AUTH_TOKEN:
+        description: npm token used in the package publication
+        required: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: oops-i-git-it-again/actions/.github/actions/npm_verify@main
+        with:
+            ref: ${{ inputs.ref }}
+  version-bump:
+    runs-on: ubuntu-latest
+    needs: verify
+    if: ${{ inputs.ref == 'refs/heads/main' }}
+    outputs:
+      tag: ${{ steps.get-tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: phips28/gh-action-bump-version@v9.0.31
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Store new tag as output
+        id: get-tag
+        run: echo "::set-output name=tag::$( git tag --points-at HEAD )"
+  release-publish:
+    runs-on: ubuntu-latest
+    needs: version-bump
+    if: ${{ success() && needs.version-bump.outputs.tag != '' }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
+          registry-url: https://registry.npmjs.org
+      - name: build
+        run: |
+          npm ci
+          npm run build
+          rm node_modules -rf
+          npm ci --exclude=dev
+          npm pack
+      - uses: softprops/action-gh-release@v0.1.14
+        with:
+          tag_name: ${{ needs.version-bump.outputs.tag }}
+          files: ${{ inputs.package_name }}-*.tgz
+      # - name: publish
+      #   run: npm publish
+      #   env:
+      #     NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
