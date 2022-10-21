@@ -63,7 +63,7 @@ jobs:
         with:
           tag_name: ${{ needs.version-bump.outputs.tag }}
           files: ${{ inputs.package_name }}-*.tgz
-      # - name: publish
-      #   run: npm publish
-      #   env:
-      #     NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
+      - name: publish
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
